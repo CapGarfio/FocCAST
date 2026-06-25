@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+.venv/
+
+# Datos grandes (¡IMPORTANTE!)
+data/raw/
+data/processed/
+outputs/
+*.npy
+*.npz
+*.shp
+*.shx
+*.dbf
+*.prj
+*.tif
+*.geojson
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

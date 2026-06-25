@@ -1,0 +1,77 @@
+FocCAST/
+├── README.md                   # Descripción del proyecto, estado y enlaces
+├── requirements.txt            # Dependencias base (PyQt6, numpy, geopandas, etc.)
+├── pyproject.toml              # (Opcional pero recomendado) Para instalar el paquete en modo editable
+├── .gitignore                  # Ignorar data/, outputs/, __pycache__, etc.
+├── run.py                      # Punto de entrada ÚNICO. Solo llama a src.main.launch()
+│
+├── docs/                       # 📚 Documentación estratégica y técnica
+│   ├── modelo_conceptual.md    # Aquí volcamos la propuesta formal que has escrito
+│   ├── manual_usuario.md       # Guía para el gestor forestal
+│   ├── api_reference.md        # Documentación interna de módulos
+│   └── fuentes_datos.md        # URLs y metadatos de las fuentes (EGIF, CORINE, Catastro...)
+│
+├── scripts/                    # ⚙️ Utilidades de consola (NO son parte de la GUI)
+│   ├── download_egif.py        # Descarga los históricos de incendios del MITECO
+│   ├── download_catastro.py    # Obtiene shapefiles de núcleos urbanos por provincia
+│   ├── build_grid.py           # Crea la malla 500x500 y asigna usos del suelo iniciales
+│   └── migrate_data.py         # Para actualizar capas temporales (1990 -> 2000 -> ...)
+│
+├── tests/                      # 🧪 Pruebas unitarias e integración
+│   ├── test_core_engine.py
+│   ├── test_probabilities.py
+│   └── test_spanish_loaders.py
+│
+└── src/                        # 📦 Código fuente principal (el paquete 'foccast')
+    ├── __init__.py
+    ├── main.py                 # Orquesta la aplicación: carga configuración e inicia GUI
+    ├── config.py               # Gestiona rutas absolutas (data/, outputs/) y parámetros globales
+    │
+    ├── core/                   # 🧠 NÚCLEO CIENTÍFICO (Independiente de la procedencia de datos)
+    │   ├── __init__.py
+    │   ├── engine.py           # Clase FocCASTEngine: gestiona el grid NumPy, estados y evolución temporal
+    │   ├── cell_rules.py       # Lógica de transición V->Q, R->Q, y temporizadores τ_rec, τ_verde
+    │   ├── probabilities.py    # Cálculo vectorizado de P_contagio (Moore) y P_antropico (ec. distancia)
+    │   └── parameters.py       # Clase para el vector Θ (α_D, α_S, λ, β, ρ...) con serialización JSON
+    │
+    ├── data/                   # 💾 CAPA DE ACCESO A DATOS (Adaptadores)
+    │   ├── __init__.py
+    │   ├── base_loader.py      # Define la interfaz abstracta (load_fires, load_landuse, load_urban...)
+    │   │
+    │   ├── spain/              # 🇪🇸 IMPLEMENTACIÓN PARA ESPAÑA (Fuentes abiertas)
+    │   │   ├── __init__.py
+    │   │   ├── fire_loader.py      # Lector de EGIF (MITECO) y GVA (formato shapefile/CSV)
+    │   │   ├── land_loader.py      # Lector de CORINE Land Cover (CLC) o SIOSE
+    │   │   ├── urban_loader.py     # Lector de Catastro (parcelas) y OSM (calles) -> convierte a % malla
+    │   │   ├── meteo_loader.py     # Lector de AEMET (estaciones) -> interpola a la malla
+    │   │   ├── dem_loader.py       # Lector del MDT del IGN (Modelo Digital del Terreno)
+    │   │   └── population_loader.py # Lector del INE (censos municipales)
+    │   │
+    │   └── adapters/           # (Para futuros países, ej. Portugal, Francia)
+    │       └── README.md
+    │
+    ├── gui/                    # 🖥️ INTERFAZ DE USUARIO (Desktop con Open Maps)
+    │   ├── __init__.py
+    │   ├── main_window.py      # Ventana principal con Layout (Mapa + Paneles laterales)
+    │   ├── map_widget.py       # Widget crítico: Embebe QWebEngineView con Leaflet.js y OpenStreetMap
+    │   ├── timeline_control.py # Widget del slider temporal (QSlider + QDateEdit)
+    │   ├── params_panel.py     # Panel de la derecha: gráficas de evolución de Θ y métricas
+    │   ├── inspector.py        # Panel inferior: al hacer clic en el mapa, muestra datos de la celda
+    │   │
+    │   └── resources/          # 🗺️ Recursos estáticos para el mapa interactivo
+    │       ├── map_template.html   # Página HTML que carga Leaflet y las teselas OSM
+    │       ├── css/
+    │       │   └── custom_style.css # Estilos para los controles del mapa
+    │       └── js/
+    │           └── map_controller.js # Lógica JS para recibir órdenes de Python (añadir capas, clics)
+    │
+    ├── utils/                  # 🔧 Utilidades transversales
+    │   ├── __init__.py
+    │   ├── logger.py           # Configuración de logging (con colores y archivos rotativos)
+    │   ├── geometry.py         # Cálculos de distancias geodésicas, vecindad de Moore en coordenadas
+    │   ├── raster_utils.py     # Lectura/escritura rápida de GeoTIFF y arrays .npy
+    │   └── validators.py       # Comprobación de integridad de los datos cargados
+    │
+    └── resources/              # 🎨 Otros recursos (iconos, estilos QSS)
+        ├── icons/
+        └── styles.qss
