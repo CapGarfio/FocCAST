@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 Construye un grid real de usos del suelo a partir de CORINE 2018 (API REST)
-usando la capa raster (export) para la provincia de Valencia.
+para una provincia o comarca dada por su código INE y/o bounding box.
+Uso: python scripts/build_real_grid.py [codigo_provincia] [--bbox xmin,ymin,xmax,ymax]
+Ejemplo: python scripts/build_real_grid.py 46 --bbox -0.7,39.0,-0.3,39.4  (La Ribera Alta)
 """
 import sys
 import os
@@ -14,18 +16,18 @@ from PIL import Image
 from io import BytesIO
 from src.config import DATA_PROCESSED
 from src.utils.logger import setup_logger
+from src.data.spain.provincias import get_province_bbox
 
 logger = setup_logger("BuildRealGrid")
 
 # ------------------------------------------------------------
-# Funcion de mapeo por distancia de color (con tolerancia)
+# Mapeo de colores por distancia Euclidea (con tolerancia)
 # ------------------------------------------------------------
 def closest_state(pixel_rgb):
     """
     Devuelve el estado mas cercano basado en distancia Euclidea en RGB.
     Los valores de pixel_rgb deben ser enteros entre 0 y 255.
     """
-    # Lista de colores de referencia (R,G,B) y su estado asociado
     ref_colors = [
         # Urbano -> Poblacional (3)
         ((230, 0, 0), 3),      # rojo intenso
@@ -48,7 +50,6 @@ def closest_state(pixel_rgb):
         ((0, 204, 242), 3),    # azul claro
         ((0, 0, 230), 3),      # azul oscuro
     ]
-    # Convertir pixel a enteros (por si vienen como uint8)
     pr, pg, pb = int(pixel_rgb[0]), int(pixel_rgb[1]), int(pixel_rgb[2])
     best_state = 0
     min_dist = float('inf')
@@ -66,49 +67,58 @@ def closest_state(pixel_rgb):
     return best_state
 
 # ------------------------------------------------------------
-# Funcion principal
+# Funcion principal de construccion de grid desde bbox
 # ------------------------------------------------------------
-def build_valencia_grid():
-    # Area de interes (Valencia aproximada)
-    xmin, ymin, xmax, ymax = -1.5, 38.5, 0.5, 40.5
-    bbox = f"{xmin},{ymin},{xmax},{ymax}"
-    logger.info(f"Area: {bbox}")
+def build_grid_from_bbox(province_code, bbox, target_size=(401, 401), name_suffix=""):
+    """
+    Genera grid a partir de un bbox dado.
+    Guarda como 'grid_{province_code}{name_suffix}.npy'
+    """
+    if bbox is None:
+        logger.error("bbox no proporcionado.")
+        return False
 
-    # 1. Descargar el raster de CORINE como PNG (capa 1)
+    xmin, ymin, xmax, ymax = bbox
+    bbox_str = f"{xmin},{ymin},{xmax},{ymax}"
+    logger.info(f"Generando grid para bbox: {bbox_str}")
+
+    # 1. Descargar raster de CORINE (capa 1)
     url = (
         "https://image.discomap.eea.europa.eu/arcgis/rest/services/Corine/CLC2018_WM/MapServer/export"
-        f"?bbox={bbox}"
+        f"?bbox={bbox_str}"
         "&bboxSR=4326"
-        "&size=800,800"          # Puedes aumentar a 1200,1200 para mas detalle
+        f"&size={target_size[0]},{target_size[1]}"
         "&format=png"
         "&transparent=true"
         "&f=image"
     )
     logger.info("Descargando raster CORINE...")
-    resp = requests.get(url)
-    if resp.status_code != 200:
-        logger.error(f"Error descargando raster: {resp.status_code}")
-        return
+    try:
+        resp = requests.get(url, timeout=30)
+        if resp.status_code != 200:
+            logger.error(f"Error descargando raster: {resp.status_code}")
+            return False
+    except Exception as e:
+        logger.error(f"Excepcion en descarga: {e}")
+        return False
 
-    # 2. Cargar imagen y convertir a array
     img = Image.open(BytesIO(resp.content))
     img = img.convert("RGB")
     raster = np.array(img)
     logger.info(f"Raster descargado: {raster.shape}")
 
-    # 3. Redimensionar a nuestra malla (401x401)
-    target_size = (401, 401)   # (ancho, alto)
+    # 2. Redimensionar al tamaño objetivo
     img_resized = img.resize(target_size, Image.NEAREST)
-    grid = np.array(img_resized)   # (alto, ancho, 3)
+    grid = np.array(img_resized)
 
-    # 4. Mapear colores a estados
+    # 3. Mapear colores a estados
     state_grid = np.full((target_size[1], target_size[0]), 0, dtype=np.int8)
-    for i in range(target_size[1]):      # filas (latitud)
-        for j in range(target_size[0]):  # columnas (longitud)
+    for i in range(target_size[1]):
+        for j in range(target_size[0]):
             pixel = grid[i, j, :3]
             state_grid[i, j] = closest_state(pixel)
 
-    # 5. Estadisticas
+    # 4. Estadisticas
     unique, counts = np.unique(state_grid, return_counts=True)
     total = state_grid.size
     for st, cnt in zip(unique, counts):
@@ -116,11 +126,37 @@ def build_valencia_grid():
         name = {0: "Verde", 1: "Recuperacion", 2: "Quemado", 3: "Poblacional"}.get(st, "Desconocido")
         logger.info(f"Estado {st} ({name}): {cnt} celdas ({pct:.1f}%)")
 
-    # 6. Guardar
+    # 5. Guardar
     os.makedirs(DATA_PROCESSED, exist_ok=True)
-    out_path = os.path.join(DATA_PROCESSED, "valencia_grid.npy")
+    out_path = os.path.join(DATA_PROCESSED, f"grid_{province_code}{name_suffix}.npy")
     np.save(out_path, state_grid)
     logger.info(f"Grid guardado en: {out_path}")
+    return True
 
+# ------------------------------------------------------------
+# Funcion para construir grid de provincia (por compatibilidad)
+# ------------------------------------------------------------
+def build_province_grid(province_code, target_size=(401, 401)):
+    """Construye grid para una provincia usando su bbox."""
+    bbox = get_province_bbox(province_code)
+    if bbox is None:
+        logger.error(f"Codigo de provincia {province_code} no encontrado.")
+        return False
+    return build_grid_from_bbox(province_code, bbox, target_size, "")
+
+# ------------------------------------------------------------
+# Punto de entrada para uso directo desde terminal
+# ------------------------------------------------------------
 if __name__ == "__main__":
-    build_valencia_grid()
+    import argparse
+    parser = argparse.ArgumentParser(description="Genera grid de CORINE para una provincia o comarca.")
+    parser.add_argument("province", nargs="?", default="46", help="Codigo INE de la provincia (ej: 28 para Madrid)")
+    parser.add_argument("--bbox", help="Bounding box personalizado: xmin,ymin,xmax,ymax")
+    parser.add_argument("--suffix", default="", help="Sufijo para el nombre del archivo")
+    args = parser.parse_args()
+
+    if args.bbox:
+        bbox = [float(x) for x in args.bbox.split(",")]
+        build_grid_from_bbox(args.province, bbox, name_suffix=args.suffix)
+    else:
+        build_province_grid(args.province)

@@ -122,10 +122,11 @@ class MapWidget(QWebEngineView):
     # ------------------------------------------------------------
     # Añadir contorno (GeoJSON)
     # ------------------------------------------------------------
-    def add_contour(self, geo_json: dict, color: str = '#FF0000', weight: int = 3):
+    def add_contour(self, geo_json: dict, color: str = '#000000', weight: int = 3, fit_bounds: bool = False):
         """
-        Añade un contorno (polígono) al mapa a partir de un GeoJSON.
+        Añade un contorno al mapa a partir de un GeoJSON.
         """
+        import json
         js_code = f"""
         (function() {{
             var checkInterval = setInterval(function() {{
@@ -139,16 +140,43 @@ class MapWidget(QWebEngineView):
                         style: {{
                             color: '{color}',
                             weight: {weight},
-                            opacity: 0.8,
+                            opacity: 0.9,
                             fillOpacity: 0
                         }}
                     }}).addTo(window.map);
                     window._foccastContour = contourLayer;
-                    window.map.fitBounds(contourLayer.getBounds());
+                    if ({str(fit_bounds).lower()}) {{
+                        try {{
+                            window.map.fitBounds(contourLayer.getBounds());
+                        }} catch(e) {{
+                            console.log('No se pudo ajustar zoom al contorno.');
+                        }}
+                    }}
                     console.log('✅ Contorno añadido.');
                 }}
             }}, 300);
             setTimeout(function() {{ clearInterval(checkInterval); }}, 10000);
+        }})();
+        """
+        self.page().runJavaScript(js_code)
+
+    # ------------------------------------------------------------
+    # Centrar el mapa
+    # ------------------------------------------------------------
+    def center_map(self, bounds):
+        """
+        Centra el mapa en los bounds dados ([[lat_min, lon_min], [lat_max, lon_max]])
+        """
+        js_code = f"""
+        (function() {{
+            var checkInterval = setInterval(function() {{
+                if (typeof L !== 'undefined' && window.map) {{
+                    clearInterval(checkInterval);
+                    window.map.fitBounds({bounds});
+                    console.log('Mapa centrado en bounds.');
+                }}
+            }}, 300);
+            setTimeout(function() {{ clearInterval(checkInterval); }}, 5000);
         }})();
         """
         self.page().runJavaScript(js_code)

@@ -29,8 +29,8 @@ STATE_POPULATION = 3
 
 # Diccionario para mapear estados a colores (RGB)
 STATE_COLORS = {
-    STATE_GREEN: (34, 139, 34),    # ForestGreen
-    STATE_RECOVERY: (255, 165, 0), # Orange
-    STATE_BURNED: (255, 0, 0),     # Red
-    STATE_POPULATION: (128, 128, 128) # Gray
+    STATE_GREEN: (200, 230, 200),      # Verde muy tenue
+    STATE_RECOVERY: (245, 235, 200),   # Beige
+    STATE_BURNED: (200, 50, 50),       # Rojo quemado (puedes dejarlo así)
+    STATE_POPULATION: (180, 180, 180)  # Gris claro
 }
