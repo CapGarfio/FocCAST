@@ -69,10 +69,10 @@ def closest_state(pixel_rgb):
 # ------------------------------------------------------------
 # Funcion principal de construccion de grid desde bbox
 # ------------------------------------------------------------
-def build_grid_from_bbox(province_code, bbox, target_size=(401, 401), name_suffix=""):
+def build_grid_from_bbox(province_code, bbox, target_size=(401, 401), name_suffix="", cell_size=500):
     """
     Genera grid a partir de un bbox dado.
-    Guarda como 'grid_{province_code}{name_suffix}.npy'
+    cell_size: se usa para calcular la resolución (por ahora no implementado).
     """
     if bbox is None:
         logger.error("bbox no proporcionado.")
